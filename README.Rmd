@@ -25,7 +25,7 @@ output: github_document
 
 ```{r}
 library(dplyr)
-data <- read.csv("credit_approval/Application_Data.csv")
+data <- read.csv("Application_Data.csv")
 glimpse(data)
 ```
 
