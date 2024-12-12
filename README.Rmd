@@ -1,0 +1,140 @@
+---
+title: "Credit card approval analysis"
+author: "Owen Kim"
+date: "`r Sys.Date()`"
+output: github_document
+---
+## Team Members
+- Owen Kim - owenk@iastate.edu
+
+### Credit Approval Dataset 
+- **Source**: https://archive.ics.uci.edu/dataset/27/credit+approval Dataset from bank in Japan, rest of the informations are confidential.
+- **Attributes**: Contains examples of individuals who were granted or denied credit, with attributes such as Gender, Age, Debt, Married, BankCustomer, Industry, Ethnicity, YearsEmployed, PriorDefault, Employed, CreditScore, DriversLicense, Citizen, ZipCode, Income, and Approved.
+- **Relevance**: This dataset provides real-world examples and domain theory for credit screening.
+
+### First Data Cleaning Steps 
+- **Handle Missing Values**: Identify and impute or remove missing values. 
+- **Convert Categorical Variables**: Encode categorical variables using techniques such as one-hot encoding or label encoding. 
+- **Normalize Continuous Variables**: Normalize continuous variables to ensure they are on a similar scale.
+
+### Question to be addressed
+1. Feature Importance in Credit Approval
+2. Demographic Analysis
+3. Model Comparison
+
+
+```{r}
+library(dplyr)
+data <- read.csv("credit_approval/Application_Data.csv")
+glimpse(data)
+```
+
+```{r}
+library(randomForest)
+
+categorical_columns <- c("Owned_Car", "Owned_Realty", "Owned_Mobile_Phone", "Owned_Work_Phone", "Owned_Phone", "Owned_Email", "Status") 
+
+char_columns <- c("Applicant_Gender", "Income_Type", "Education_Type", "Family_Status", "Housing_Type", "Job_Title") 
+
+for (col in categorical_columns) { data[[col]] <- as.factor(data[[col]]) } 
+
+for (col in char_columns) { data[[col]] <- as.factor(data[[col]]) } 
+
+Feature_selection_random_forest <- randomForest(Status ~ ., data = data, importance = TRUE)
+importance(Feature_selection_random_forest)
+varImpPlot(Feature_selection_random_forest)
+
+```
+
+```{r}
+library(ggplot2)
+status_counts <- as.data.frame(table(data$Status))
+ggplot(status_counts, aes(x = factor(Var1), y = Freq, fill = factor(Var1))) + 
+  geom_bar(stat = "identity") + 
+  labs(x = "Status", y = "Count", title = "Application decision") +
+  scale_x_discrete(labels = c("0" = "Rejected", "1" = "Approved")) +  # Change labels for x-axis
+  scale_fill_manual(values = c("0" = "red", "1" = "dark green"), 
+                    labels = c("0" = "Rejected", "1" = "Approved")) +  # Custom legend colors and labels
+  theme(legend.title = element_blank(), plot.title = element_text(size = 25))
+
+table(data$Status)
+```
+
+
+```{r}
+# Install and load the required package
+library(ROSE)
+
+# Perform random oversampling
+balanced_data <- ovun.sample(Status ~ ., data = data, method = "over")$data
+
+status_counts <- as.data.frame(table(balanced_data$Status))
+ggplot(status_counts, aes(x = factor(Var1), y = Freq, fill = factor(Var1))) + 
+  geom_bar(stat = "identity") + 
+  labs(x = "Status", y = "Count", title = "Application decision") +
+  scale_x_discrete(labels = c("0" = "Rejected", "1" = "Approved")) +  # Change labels for x-axis
+  scale_fill_manual(values = c("0" = "red", "1" = "dark green"), 
+                    labels = c("0" = "Rejected", "1" = "Approved")) +  # Custom legend colors and labels
+  theme(legend.title = element_blank(), plot.title = element_text(size = 25))
+```
+```{r}
+Feature_selection_random_forest_balacned <- randomForest(Status ~ ., data = balanced_data, importance = TRUE)
+
+# Check the importance metrics
+importance(Feature_selection_random_forest_balacned)
+varImpPlot(Feature_selection_random_forest_balacned)
+
+```
+```{r}
+library(ggplot2)
+feature_importance <- importance(Feature_selection_random_forest_balacned)
+importance_df <- as.data.frame(feature_importance)
+importance_df$Feature <- rownames(importance_df)
+
+ggplot(importance_df, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini)) +
+  geom_bar(stat = "identity", fill = "skyblue") +
+  coord_flip() +
+  labs(title = "Feature Importance (MeanDecreaseGini)", x = "Features", y = "MeanDecreaseGini") +
+  theme_minimal()
+
+```
+
+```{r}
+ggplot(data, aes(x = factor(Status), y = Total_Bad_Debt, color = factor(Status))) +
+  geom_jitter(alpha = 0.5, width = 0.2, height = 0) +
+  labs(title = "Scatter Plot of Total Bad Debt by Status", x = "Status", y = "Total Bad Debt") +
+  theme_minimal() +
+  scale_color_manual(values = c("0" = "red", "1" = "green")) +
+  scale_x_discrete(labels = c("0 = Rejected", "1 = Approved"))
+```
+```{r}
+ggplot(data, aes(x = factor(Status), y = Total_Good_Debt, fill = factor(Status))) +
+  geom_violin(alpha = 0.6) +
+  labs(title = "Violin Plot of Total Good Debt by Status", x = "Status", y = "Total Good Debt") +
+  theme_minimal() +
+  scale_fill_manual(values = c("0" = "red", "1" = "green"))
+```
+
+```{r}
+ggplot(data, aes(x = Owned_Realty, fill = factor(Status))) +
+  geom_bar(position = "dodge") +
+  labs(
+    title = "Bar Chart of Owned Realty by Status",
+    x = "Owned Realty",
+    y = "Count",
+    fill = "Status"
+  )
+```
+
+```{r}
+ggplot(data, aes(x = Income_Type, fill = factor(Status))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Proportion of Approvals by Income Type",
+    x = "Income Type",
+    y = "Proportion",
+    fill = "Status"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
